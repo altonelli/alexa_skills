@@ -1,0 +1,4 @@
+OrderSixtySixIntent execute order sixty six
+OrderSixtySixIntent execute order sixty-six
+StorePlanetIntent the plans are on {Planet}
+GetPlanetIntent where are the plans

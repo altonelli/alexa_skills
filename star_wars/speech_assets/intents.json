@@ -1,0 +1,28 @@
+{
+  "intents": [
+    {
+      "intent":"OrderSixtySixIntent"
+    },
+    {
+      "intent":"StorePlanetIntent",
+      "slots":[
+          {
+            "name": "Planet",
+            "type": "LIST_OF_PLANETS"
+          }
+      ]
+    },
+    {
+      "intent":"GetPlanetIntent"
+    },
+    {
+      "intent":"AMAZON.HelpIntent"
+    },
+    {
+      "intent":"AMAZON.CancelIntent"
+    },
+    {
+      "intent":"AMAZON.StopIntent"
+    }
+  ]
+}

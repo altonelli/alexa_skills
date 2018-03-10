@@ -21,12 +21,12 @@ def on_intent(intent_request, session):
     intent = intent_request['intent']
     intent_name = intent['name']
 
-    if intent_name == 'Order66Intent':
+    if intent_name == 'OrderSixtySixIntent':
         return behaviors.execute_order_sixty_six(session)
-    elif intent_name == 'StoreDataIntent':
-        return behaviors.store_data_in_session(intent, session)
-    elif intent_name == 'GetDataIntent':
-        return behaviors.get_data_from_session(intent, session)
+    elif intent_name == 'StorePlanetIntent':
+        return behaviors.store_planet_in_session(intent, session)
+    elif intent_name == 'GetPlanetIntent':
+        return behaviors.get_planet_from_session(intent, session)
     elif intent_name == "AMAZON.HelpIntent":
         return behaviors.get_welcome_response(session)
     elif intent_name == "AMAZON.CancelIntent" or \
