@@ -1,3 +1,4 @@
 AWSIoTPythonSDK
 boto3
 gpiozero
+pigpio
