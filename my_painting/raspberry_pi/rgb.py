@@ -9,7 +9,7 @@ class RGB(object):
 
 class RGBColor(RGB):
     def __init__(self, r, g, b):
-        super(RGBColor, self, r, g, b).__init__()
+        super(RGBColor, self).__init__(r, g, b)
         self.display_r = self.r
         self.display_g = self.g
         self.display_b = self.b
@@ -35,7 +35,7 @@ class RGBColor(RGB):
         self.display_g = rgb_color.display_g
         self.display_b = rgb_color.display_b
 
-    def reset_color():
+    def reset_color(self):
         self.display_r = self.r
         self.display_g = self.g
         self.display_b = self.b

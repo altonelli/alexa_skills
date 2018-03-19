@@ -34,6 +34,7 @@ class Light(object):
         self.pi = pigpio.pi()
         self.lock = threading.Lock()
         self.wave_thread = threading.Thread(self._wave())
+        self.wave_thread.start()
 
     def current_settings(self):
         return {
@@ -59,8 +60,8 @@ class Light(object):
     def _update_board(self):
         if self.power_state == "ON":
             # Case where called on
-            self._update_brightness()
             self._update_mode()
+            self._update_brightness()
         else:
             # Case where called off
             self.display_color.copy_disp_values(OFF)
@@ -88,21 +89,20 @@ class Light(object):
 
     def _update_mode(self):
         while self.mode == "WAVE":
-            self.wave_thread.start()
             self.wave_thread.join()
         # Reset to original color, and current brightness after WAVE Mode
         self._reset_disp_color_and_brightness()
         self._update_color()
 
     def _adj_disp_brightness(self):
-        self.lock.aquire()
+        self.lock.acquire()
         remaining_adjustment = self.brightness - self.display_brightness
         self.display_brightness = self.display_brightness + \
             (remaining_adjustment) / abs(remaining_adjustment)
         self.lock.release()
 
     def _reset_disp_color_and_brightness(self, display_brightness=False):
-        self.lock.aquire()
+        self.lock.acquire()
         self.display_color.reset_color()
         if display_brightness:
             self.display_color.adjust_brightness(self.display_brightness)
@@ -110,12 +110,12 @@ class Light(object):
             self.display_color.adjust_brightness(self.brightness)
         self.lock.release()
 
-    def _update_color(self, rgb_color):
+    def _update_color(self):
         """
         Updates the LED colors on the lights through the GPIO Pins with
         the pigpio library.
         """
-        self.lock.aquire()
+        self.lock.acquire()
         self.pi.set_PWM_dutycycle(PINS.r, self.display_color.display_r)
         self.pi.set_PWM_dutycycle(PINS.g, self.display_color.display_g)
         self.pi.set_PWM_dutycycle(PINS.b, self.display_color.display_b)
@@ -128,7 +128,7 @@ class Light(object):
             rand_int = random.randint(0, len(rgb_colors))
             next_color = rgb_colors[rand_int]
             next_color.reset_color()
-            self.lock.aquire()
+            self.lock.acquire()
             next_color.adjust_brightness(self.display_brightness)
             self.lock.release()
             # Incrementally adjust the color of the wave
@@ -150,7 +150,7 @@ def get_rgb_color_list():
     rgbs = [NATURALISH, OVERCAST_SKY, CANDLE, SODIUM_VAPOR,
             HIGH_PRESSURE_SODIUM, TUNGSTEN_40W]
     rgb_colors = []
-    for rgb in list_of_rgbs:
+    for rgb in rgbs:
         rgb_color = RGBColor(r=rgb.r,
                              g=rgb.g,
                              b=rgb.b)
@@ -167,6 +167,7 @@ if __name__ == '__main__':
         'brightness': 100,
         'mode': STATIC
     }
+    print(light_data_0)
     light.update_lights(light_data_0)
     time.sleep(1)
     light_data_1 = {
@@ -174,6 +175,7 @@ if __name__ == '__main__':
         'brightness': 50,
         'mode': WAVE
     }
+    print(light_data_1)
     light.update_lights(light_data_1)
     time.sleep(1)
     light_data_2 = {
@@ -181,6 +183,7 @@ if __name__ == '__main__':
         'brightness': 10,
         'mode': STATIC
     }
+    print(light_data_2)
     light.update_lights(light_data_2)
     time.sleep(1)
     light_data_3 = {
@@ -188,6 +191,7 @@ if __name__ == '__main__':
         'brightness': 100,
         'mode': STATIC
     }
+    print(light_data_3)
     light.update_lights(light_data_3)
     time.sleep(1)
     light_data_4 = {
@@ -195,6 +199,7 @@ if __name__ == '__main__':
         'brightness': 100,
         'mode': WAVE
     }
+    print(light_data_4)
     light.update_lights(light_data_4)
     time.sleep(30)
     light_data_5 = {
@@ -202,6 +207,7 @@ if __name__ == '__main__':
         'brightness': 50,
         'mode': WAVE
     }
+    print(light_data_5)
     light.update_lights(light_data_5)
     time.sleep(30)
     light_data_6 = {
@@ -209,6 +215,7 @@ if __name__ == '__main__':
         'brightness': 50,
         'mode': WAVE
     }
+    print(light_data_6)
     light.update_lights(light_data_6)
     time.sleep(3)
     light_data_7 = {
@@ -216,6 +223,7 @@ if __name__ == '__main__':
         'brightness': 50,
         'mode': WAVE
     }
+    print(light_data_7)
     light.update_lights(light_data_7)
     time.sleep(30)
     light_data_8 = {
@@ -223,4 +231,5 @@ if __name__ == '__main__':
         'brightness': 50,
         'mode': WAVE
     }
+    print(light_data_8)
     light.update_lights(light_data_8)
