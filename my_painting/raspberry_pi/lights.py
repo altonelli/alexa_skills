@@ -44,27 +44,39 @@ class Light(object):
                }
 
     def needs_updating(self, light_data):
-        if light_data.get('brightness') != self.brightness \
-        or light_data.get('mode') != self.mode \
-        or light_data.get('power_state') != self.power_state:
+        self.lock.acquire()
+        brightness = self.brightness
+        mode = self.mode
+        power_state = self.power_state
+        self.lock.release()
+        if light_data.get('brightness') != brightness \
+        or light_data.get('mode') != mode \
+        or light_data.get('power_state') != power_state:
             return True
         return False
 
     def update_lights(self, light_data):
+        self.lock.acquire()
         self.display_brightness = self.brightness
         self.brightness = light_data.get('brightness')
         self.mode = light_data.get('mode')
         self.power_state = light_data.get('power_state')
+        self.lock.release()
         self._update_board()
 
     def _update_board(self):
-        if self.power_state == "ON":
+        self.lock.acquire()
+        power_state = self.power_state
+        self.lock.release()
+        if power_state == "ON":
             # Case where called on
             self._update_mode()
             self._update_brightness()
         else:
             # Case where called off
+            self.lock.acquire()
             self.display_color.copy_disp_values(OFF)
+            self.lock.release()
             self._update_color()
 
     def _update_brightness(self):
@@ -88,7 +100,10 @@ class Light(object):
             self._update_color()
 
     def _update_mode(self):
-        while self.mode == "WAVE":
+        self.lock.acquire()
+        mode = self.mode
+        self.lock.release()
+        while self.mode == WAVE:
             self.wave_thread.join()
         # Reset to original color, and current brightness after WAVE Mode
         self._reset_disp_color_and_brightness()
@@ -123,9 +138,13 @@ class Light(object):
 
     def _wave(self):
         rgb_colors = get_rgb_color_list()
-        while self.mode == "WAVE":
+        self.lock.acquire()
+        mode = self.mode
+        power_state = self.power_state
+        self.lock.release()
+        while mode == WAVE and power_state == "ON":
             # Get new color and adjust its brightness to be current
-            rand_int = random.randint(0, len(rgb_colors))
+            rand_int = random.randint(0, len(rgb_colors) - 1)
             next_color = rgb_colors[rand_int]
             next_color.reset_color()
             self.lock.acquire()
@@ -142,7 +161,14 @@ class Light(object):
             # True up final color fo wave
             self.display_color.copy_disp_values(next_color)
             self._update_color()
+            self.lock.acquire()
+            mode = self.mode
+            self.lock.release()
             time.sleep(DURATION_OF_STEP)
+        self.lock.acquire()
+        self._update_board()
+        self.lock.release()
+        return 0
 
 
 
