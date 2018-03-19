@@ -1,21 +1,17 @@
 import time
+import random
+import threading
+from copy import copy
 
 import pigpio
 
+from constants import *
+from rgb import RGB, RGBColor
 from light_values import *
-
-STATIC = "STATIC"
-WAVE = "WAVE"
-
-R_PIN = 17
-G_PIN = 22
-B_PIN = 4
 
 PINS = RGB(r=R_PIN, g=G_PIN, b=B_PIN)
 
-VCC = 10
-
-OFF = RGB(r=0, g=0, b=0)
+OFF = RGBColor(r=0, g=0, b=0)
 
 class Light(object):
     """Lights object to maintian logic of the state of the lights and
@@ -23,13 +19,21 @@ class Light(object):
     """
     def __init__(self):
         super(Light, self).__init__()
-        self.previous_brightness = 100
+        # Core attributes
         self.brightness = 100
-        self.color = CANDLE
         self.mode = STATIC
         self.power_state = "OFF"
+        self.color = copy(NATURALISH)
 
+        # Color/Brightness adjustment attributes
+        self.display_brightness = 100
+        self.display_color = RGBColor(r=self.color.r,
+                                      g=self.color.g,
+                                      b=self.color.b)
+        # GPIO initialization
         self.pi = pigpio.pi()
+        self.lock = threading.Lock()
+        self.wave_thread = threading.Thread(self._wave())
 
     def current_settings(self):
         return {
@@ -46,7 +50,7 @@ class Light(object):
         return False
 
     def update_lights(self, light_data):
-        self.previous_brightness = self.brightness
+        self.display_brightness = self.brightness
         self.brightness = light_data.get('brightness')
         self.mode = light_data.get('mode')
         self.power_state = light_data.get('power_state')
@@ -54,43 +58,105 @@ class Light(object):
 
     def _update_board(self):
         if self.power_state == "ON":
-            # Case where called on and no change in brightness
-            # if self.previous_brightness == self.brightness:
-            #     gpio_brightness = self.previous_brightness * (255/100)
-            #     self.pi.set_PWM_dutycycle(PIN, gpio_brightness)
-            # # Case where already on and need change in brightness
-            # else:
+            # Case where called on
             self._update_brightness()
+            self._update_mode()
         else:
             # Case where called off
-            self._update_color(OFF)
-        print(self.brightness)
-        print(self.mode)
-        print(self.power_state)
+            self.display_color.copy_disp_values(OFF)
+            self._update_color()
 
     def _update_brightness(self):
-        while self.previous_brightness != self.brightness:
-            next_color = RGB(r=int(self.color.r * (self.previous_brightness/100)),
-                             g=int(self.color.g * (self.previous_brightness/100)),
-                             b=int(self.color.b * (self.previous_brightness/100)))
-            self._update_color(next_color)
-            diff = self.brightness - self.previous_brightness
+        """
+        Updates the display brightness incrementally. This will
+        effect all Modes.
+
+        If the Mode is on STATIC or not in WAVE it will also
+        fade and adjust the color.
+        """
+        while self.display_brightness != self.brightness:
+            if self.mode != WAVE:
+                self._reset_disp_color_and_brightness(True)
+                self._update_color()
             # adjust previous brightness to +/- 1
-            self.previous_brightness = self.previous_brightness + \
-                (diff) / abs(diff)
-            time.sleep(.05)
-        final_color = RGB(r=int(self.color.r * (self.brightness/100)),
-                         g=int(self.color.g * (self.brightness/100)),
-                         b=int(self.color.b * (self.brightness/100)))
-        self._update_color(self.color)
+            self._adj_disp_brightness()
+            time.sleep(DURATION_OF_STEP)
+        if self.mode != WAVE:
+            # True up color to brightness adjustment
+            self._reset_disp_color_and_brightness()
+            self._update_color()
 
-    def _update_color(self, rgb_tuple):
-        for color in rgb_tuple._fields:
-            self.pi.set_PWM_dutycycle(getattr(PINS, color), getattr(rgb_tuple, color))
+    def _update_mode(self):
+        while self.mode == "WAVE":
+            self.wave_thread.start()
+            self.wave_thread.join()
+        # Reset to original color, and current brightness after WAVE Mode
+        self._reset_disp_color_and_brightness()
+        self._update_color()
 
-def update_color(pi, rgb_tuple):
-    for color in rgb_tuple._fields:
-        pi.set_PWM_dutycycle(getattr(PINS, color), getattr(rgb_tuple, color))
+    def _adj_disp_brightness(self):
+        self.lock.aquire()
+        remaining_adjustment = self.brightness - self.display_brightness
+        self.display_brightness = self.display_brightness + \
+            (remaining_adjustment) / abs(remaining_adjustment)
+        self.lock.release()
+
+    def _reset_disp_color_and_brightness(self, display_brightness=False):
+        self.lock.aquire()
+        self.display_color.reset_color()
+        if display_brightness:
+            self.display_color.adjust_brightness(self.display_brightness)
+        else:
+            self.display_color.adjust_brightness(self.brightness)
+        self.lock.release()
+
+    def _update_color(self, rgb_color):
+        """
+        Updates the LED colors on the lights through the GPIO Pins with
+        the pigpio library.
+        """
+        self.lock.aquire()
+        self.pi.set_PWM_dutycycle(PINS.r, self.display_color.display_r)
+        self.pi.set_PWM_dutycycle(PINS.g, self.display_color.display_g)
+        self.pi.set_PWM_dutycycle(PINS.b, self.display_color.display_b)
+        self.lock.release()
+
+    def _wave(self):
+        rgb_colors = get_rgb_color_list()
+        while self.mode == "WAVE":
+            # Get new color and adjust its brightness to be current
+            rand_int = random.randint(0, len(rgb_colors))
+            next_color = rgb_colors[rand_int]
+            next_color.reset_color()
+            self.lock.aquire()
+            next_color.adjust_brightness(self.display_brightness)
+            self.lock.release()
+            # Incrementally adjust the color of the wave
+            color_adjs = self.display_color.get_color_adjustments(next_color)
+            for step in range(0, NUM_OF_STEPS):
+                self.display_color.adjust_color(r=color_adjs[0],
+                                                g=color_adjs[1],
+                                                b=color_adjs[2])
+                self._update_color()
+                time.sleep(DURATION_OF_STEP)
+            # True up final color fo wave
+            self.display_color.copy_disp_values(next_color)
+            self._update_color()
+            time.sleep(DURATION_OF_STEP)
+
+
+
+def get_rgb_color_list():
+    rgbs = [NATURALISH, OVERCAST_SKY, CANDLE, SODIUM_VAPOR,
+            HIGH_PRESSURE_SODIUM, TUNGSTEN_40W]
+    rgb_colors = []
+    for rgb in list_of_rgbs:
+        rgb_color = RGBColor(r=rgb.r,
+                             g=rgb.g,
+                             b=rgb.b)
+        rgb_colors.append(rgb_color)
+    return rgb_colors
+
 
 if __name__ == '__main__':
     light = Light()
@@ -102,31 +168,59 @@ if __name__ == '__main__':
         'mode': STATIC
     }
     light.update_lights(light_data_0)
-    time.sleep(3)
+    time.sleep(1)
     light_data_1 = {
         'power_state': "ON",
         'brightness': 50,
-        'mode': STATIC
+        'mode': WAVE
     }
     light.update_lights(light_data_1)
-    time.sleep(7)
+    time.sleep(1)
     light_data_2 = {
         'power_state': "ON",
         'brightness': 10,
         'mode': STATIC
     }
     light.update_lights(light_data_2)
-    time.sleep(10)
+    time.sleep(1)
     light_data_3 = {
         'power_state': "ON",
         'brightness': 100,
         'mode': STATIC
     }
     light.update_lights(light_data_3)
-    time.sleep(7)
+    time.sleep(1)
     light_data_4 = {
-        'power_state': "OFF",
+        'power_state': "ON",
         'brightness': 100,
-        'mode': STATIC
+        'mode': WAVE
     }
     light.update_lights(light_data_4)
+    time.sleep(30)
+    light_data_5 = {
+        'power_state': "ON",
+        'brightness': 50,
+        'mode': WAVE
+    }
+    light.update_lights(light_data_5)
+    time.sleep(30)
+    light_data_6 = {
+        'power_state': "OFF",
+        'brightness': 50,
+        'mode': WAVE
+    }
+    light.update_lights(light_data_6)
+    time.sleep(3)
+    light_data_7 = {
+        'power_state': "ON",
+        'brightness': 50,
+        'mode': WAVE
+    }
+    light.update_lights(light_data_7)
+    time.sleep(30)
+    light_data_8 = {
+        'power_state': "OFF",
+        'brightness': 50,
+        'mode': WAVE
+    }
+    light.update_lights(light_data_8)

@@ -6,9 +6,8 @@ Sourced from http://planetpixelemporium.com/tutorialpages/light.html
 # Light Source Kelvin
 LIGHT_SOURCE = RGB(R <int>, G <int>, B <int>)
 """
-import collections
+from rgb import RGB
 
-RGB = collections.namedtuple('RGB', 'r g b')
 # Candle 1900
 CANDLE = RGB(255, 147, 41)
 # 40W Tungsten 2600
@@ -47,3 +46,9 @@ SODIUM_VAPOR = RGB(255, 209, 178)
 METAL_HALIDE = RGB(242, 252, 255)
 # High Pressure Sodium
 HIGH_PRESSURE_SODIUM = RGB(255, 183, 76)
+
+## My colors
+# Naturalish
+NATURALISH = RGB(240,150,20)
+
+YELLOWISH = RGB(240,180,20)
